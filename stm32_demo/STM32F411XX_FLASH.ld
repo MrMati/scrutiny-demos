@@ -211,6 +211,11 @@ SECTIONS
 
   .bss (NOLOAD) : ALIGN(4)
   {
+    /* put RTT buffers at the front for host to find them faster */
+    *(.bss._acDownBuffer)
+    *(.bss._acUpBuffer)
+    *(.bss._SEGGER_RTT)
+
     *(.bss)
     *(.bss*)
     *(COMMON)
