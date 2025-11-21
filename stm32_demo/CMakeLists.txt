@@ -24,6 +24,14 @@ add_compile_options(
 
 add_executable(${CMAKE_PROJECT_NAME})
 
+# Scrutiny transport selection: default to USB CDC (OFF -> CDC). Enable RTT to use SEGGER RTT.
+option(SCRUTINY_USE_RTT "Use SEGGER RTT transport for Scrutiny (default OFF -> CDC)" OFF)
+if(SCRUTINY_USE_RTT)
+    add_compile_definitions(SCRUTINY_TRANSPORT_RTT)
+else()
+    add_compile_definitions(SCRUTINY_TRANSPORT_CDC)
+endif()
+
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 

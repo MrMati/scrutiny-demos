@@ -1,8 +1,15 @@
 #include "scrutiny_integration.h"
 
-#include "SEGGER_RTT.h"
 #include "scrutiny.hpp"
+
+#if defined(SCRUTINY_TRANSPORT_RTT)
+#include "SEGGER_RTT.h"
+#elif defined(SCRUTINY_TRANSPORT_CDC)
+#include "cdc_queue.h"
 #include "usbd_cdc_if.h"
+#else
+#error "No scrutiny transport defined. Define SCRUTINY_TRANSPORT_RTT or SCRUTINY_TRANSPORT_CDC"
+#endif
 
 uint8_t scrutiny_rx_buffer[256];
 uint8_t scrutiny_tx_buffer[512];
@@ -33,7 +40,9 @@ void scrutiny_integration_init() {
 
     main_handler.init(&config);
 
+#if defined(SCRUTINY_TRANSPORT_RTT)
     SEGGER_RTT_Init();
+#endif
 }
 
 void scrutiny_integration_update(const uint32_t timestamp_us) {
@@ -47,12 +56,24 @@ void scrutiny_integration_update(const uint32_t timestamp_us) {
         last_timestamp_task_100hz = timestamp_us;
     }
 
+    
+#if defined(SCRUTINY_TRANSPORT_RTT)
     uint8_t rxTxBuf[256];
     if (SEGGER_RTT_HasData(0)) {
         unsigned int readSize = SEGGER_RTT_Read(0, rxTxBuf, sizeof(rxTxBuf));
+        main_handler.receive_data(rxTxBuf, readSize);
+    }
+#elif defined(SCRUTINY_TRANSPORT_CDC)
+    uint8_t rxTxBuf[CDC_QUEUE_MAX_PACKET_SIZE];
+    uint16_t readSize = CDC_ReceiveQueue_ReadSize(&ReceiveQueue);
+    if (readSize > 0) {
+        if (readSize > sizeof(rxTxBuf)) readSize = sizeof(rxTxBuf);
+        CDC_ReceiveQueue_Read(&ReceiveQueue, rxTxBuf, readSize);
+        CDC_resume_receive();
 
         main_handler.receive_data(rxTxBuf, readSize);
     }
+#endif
 
     main_handler.process(timestep_100ns);
 
@@ -63,7 +84,12 @@ void scrutiny_integration_update(const uint32_t timestamp_us) {
         if (lenToSend > sizeof(rxTxBuf)) lenToSend = sizeof(rxTxBuf);
 
         main_handler.pop_data(rxTxBuf, lenToSend);
-        
+
+#if defined(SCRUTINY_TRANSPORT_RTT)
         SEGGER_RTT_Write(0, rxTxBuf, lenToSend);
+#elif defined(SCRUTINY_TRANSPORT_CDC)
+        CDC_TransmitQueue_Enqueue(&TransmitQueue, rxTxBuf, lenToSend);
+        CDC_continue_transmit();
+#endif
     }
 }
